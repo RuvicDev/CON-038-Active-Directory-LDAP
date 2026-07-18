@@ -1,0 +1,442 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Conector Active Directory / LDAP — Ruvic</title>
+  <link rel="stylesheet" href="assets/ruvic.css">
+</head>
+<body>
+  <main class="ruvic-container">
+    <nav class="ruvic-toc" aria-label="Índice">
+      <h2 data-i18n="toc_titulo">Contenido</h2>
+      <ol>
+        <li><a href="#que-es" data-i18n="toc_item_que_es">¿Qué es y para qué sirve?</a></li>
+        <li><a href="#prerrequisitos" data-i18n="toc_item_prerrequisitos">Prerrequisitos</a></li>
+        <li><a href="#configuracion-fabricante" data-i18n="toc_item_configuracion_fabricante">Configuración en el fabricante</a></li>
+        <li><a href="#permisos" data-i18n="toc_item_permisos">Permisos requeridos</a></li>
+        <li><a href="#configuracion-ruvic" data-i18n="toc_item_configuracion_ruvic">Configuración en Ruvic</a></li>
+        <li><a href="#verificacion" data-i18n="toc_item_verificacion">Verificación</a></li>
+        <li><a href="#solucion-problemas" data-i18n="toc_item_solucion_problemas">Solución de problemas</a></li>
+        <li><a href="#faq-seguridad" data-i18n="toc_item_faq_seguridad">Preguntas frecuentes y notas de seguridad</a></li>
+      </ol>
+    </nav>
+
+    <h1 data-i18n="titulo_principal">Conector Active Directory / LDAP</h1>
+    <p class="guide-updated">{{ULTIMA_ACTUALIZACION}}</p>
+
+    <section>
+      <h2 id="que-es" data-i18n="sec_que_es_h2">¿Qué es y para qué sirve?</h2>
+      <p><span data-i18n="que_es_p1_seg1">El conector Active Directory/LDAP permite que el agente de Ruvic consulte el directorio corporativo de la empresa — buscar personas, ver a qué grupos pertenecen, o confirmar si una cuenta existe. Funciona tanto con </span><strong data-i18n="que_es_p1_strong1">Active Directory</strong><span data-i18n="que_es_p1_seg2"> (Microsoft) como con </span><strong data-i18n="que_es_p1_strong2">LDAP genérico</strong><span data-i18n="que_es_p1_seg3"> (OpenLDAP, FreeIPA, y otros que sigan el estándar).</span></p>
+      <p data-i18n="que_es_p2">Una vez configurado, puedes pedirle al agente cosas como:</p>
+      <ul>
+        <li data-i18n="que_es_ejemplo1">"Busca a Juan Pérez en el directorio."</li>
+        <li data-i18n="que_es_ejemplo2">"¿A qué grupos pertenece el usuario jperez?"</li>
+        <li data-i18n="que_es_ejemplo3">"¿Existe la cuenta 'mgomez' en el directorio?"</li>
+      </ul>
+      <p data-i18n="que_es_operaciones_intro">Operaciones soportadas:</p>
+      <table>
+        <thead><tr><th data-i18n="que_es_tabla_th1">Operación</th><th data-i18n="que_es_tabla_th2">Qué hace</th></tr></thead>
+        <tbody>
+          <tr><td><code>directory.search_user</code></td><td data-i18n="que_es_tabla_fila1_desc">Busca usuarios por coincidencia parcial en usuario, nombre o correo</td></tr>
+          <tr><td><code>directory.get_user_groups</code></td><td data-i18n="que_es_tabla_fila2_desc">Consulta los grupos de un usuario específico</td></tr>
+          <tr><td><code>directory.check_user_exists</code></td><td data-i18n="que_es_tabla_fila3_desc">Valida si una cuenta existe (búsqueda exacta)</td></tr>
+        </tbody>
+      </table>
+      <div class="callout callout-info">
+        <span class="callout-title" data-i18n="que_es_callout_titulo">Conector de solo lectura</span>
+        <span data-i18n="que_es_callout_seg1">Este conector </span><strong data-i18n="que_es_callout_strong1">no crea, modifica, ni elimina</strong><span data-i18n="que_es_callout_seg2"> usuarios ni grupos — no tiene ningún método para hacerlo. Los cambios de identidad en un directorio corporativo suelen requerir flujos de aprobación propios (mesa de ayuda, gestión de identidad) que este conector no debe saltarse.</span>
+      </div>
+    </section>
+
+    <section>
+      <h2 id="prerrequisitos" data-i18n="sec_prerrequisitos_h2">Prerrequisitos</h2>
+      <ul>
+        <li><span data-i18n="prereq_item1_seg1">Un </span><strong data-i18n="prereq_item1_strong1">Active Directory</strong><span data-i18n="prereq_item1_seg2"> o servidor </span><strong data-i18n="prereq_item1_strong2">LDAP</strong><span data-i18n="prereq_item1_seg3"> accesible por red desde donde corre Ruvic.</span></li>
+        <li><span data-i18n="prereq_item2_seg1">Un </span><strong data-i18n="prereq_item2_strong1">usuario de servicio dedicado</strong><span data-i18n="prereq_item2_seg2"> con solo permiso de lectura — nunca una cuenta de administrador de dominio.</span></li>
+        <li><span data-i18n="prereq_item3_seg1">El </span><strong data-i18n="prereq_item3_strong1">Base DN</strong><span data-i18n="prereq_item3_seg2"> (el "punto de partida" de las búsquedas dentro del árbol del directorio).</span></li>
+        <li><span data-i18n="prereq_item4_seg1">Para pruebas: puedes levantar un servidor OpenLDAP local con Docker en vez de conectarte a un Active Directory productivo (ver sección de </span><a href="#verificacion" data-i18n="prereq_item4_link">Verificación</a><span data-i18n="prereq_item4_seg2">).</span></li>
+      </ul>
+    </section>
+
+    <section>
+      <h2 id="configuracion-fabricante" data-i18n="sec_config_fabricante_h2">Configuración en el fabricante</h2>
+
+      <h3 data-i18n="fabricante_ad_h3">Si es Active Directory (Microsoft)</h3>
+      <ol class="ruvic-steps">
+        <li><strong data-i18n="ad_paso1_strong1">Pide al administrador de dominio</strong><span data-i18n="ad_paso1_seg1"> que cree una cuenta de servicio (ej. </span><code>svc-ruvic</code><span data-i18n="ad_paso1_seg2">), como cuenta de usuario normal — </span><strong data-i18n="ad_paso1_strong2">no</strong><span data-i18n="ad_paso1_seg3"> como Domain Admin.</span></li>
+        <li><strong data-i18n="ad_paso2_strong1">Confirma el Base DN</strong><span data-i18n="ad_paso2_seg1"> de tu dominio — normalmente se ve como </span><code>DC=miempresa,DC=com</code><span data-i18n="ad_paso2_seg2">. Puedes verlo en "Active Directory Users and Computers" (ADUC), en las propiedades del dominio.</span></li>
+        <li><strong data-i18n="ad_paso3_strong1">Confirma el DN completo de la cuenta de servicio</strong><span data-i18n="ad_paso3_seg1"> — algo como </span><code>CN=svc-ruvic,OU=Service Accounts,DC=miempresa,DC=com</code><span data-i18n="ad_paso3_seg2">. El administrador puede darte este valor exacto desde ADUC (clic derecho en la cuenta → "Copy Distinguished Name", en algunas versiones).</span></li>
+        <li><strong data-i18n="ad_paso4_strong1">Confirma que LDAPS (puerto 636) esté habilitado</strong><span data-i18n="ad_paso4_seg1"> en el controlador de dominio — es la vía recomendada. Si no lo está, pide al equipo de infraestructura que lo habilite (requiere un certificado en el controlador de dominio).</span></li>
+      </ol>
+
+      <h3 data-i18n="fabricante_ldap_h3">Si es LDAP genérico (OpenLDAP, FreeIPA, etc.)</h3>
+      <ol class="ruvic-steps">
+        <li><strong data-i18n="ldap_paso1_strong1">Pide al administrador del directorio</strong><span data-i18n="ldap_paso1_seg1"> un usuario/DN de solo lectura (ej. </span><code>cn=ruvic-readonly,dc=miempresa,dc=com</code><span data-i18n="ldap_paso1_seg2">).</span></li>
+        <li><strong data-i18n="ldap_paso2_strong1">Confirma el Base DN</strong><span data-i18n="ldap_paso2_seg1"> (ej. </span><code>dc=miempresa,dc=com</code><span data-i18n="ldap_paso2_seg2">).</span></li>
+        <li><strong data-i18n="ldap_paso3_strong1">Confirma si el overlay</strong> <code>memberOf</code> <strong data-i18n="ldap_paso3_strong2">está habilitado</strong><span data-i18n="ldap_paso3_seg1"> — es necesario para que </span><code>get_user_groups</code><span data-i18n="ldap_paso3_seg2"> funcione. La mayoría de instalaciones modernas de OpenLDAP lo tienen activado por defecto.</span></li>
+      </ol>
+    </section>
+
+    <section>
+      <h2 id="permisos" data-i18n="sec_permisos_h2">Permisos requeridos</h2>
+      <table>
+        <thead><tr><th data-i18n="permisos_tabla_th1">Permiso</th><th data-i18n="permisos_tabla_th2">Para qué lo usa el conector</th></tr></thead>
+        <tbody>
+          <tr><td data-i18n="permisos_tabla_fila1_col1">Lectura sobre el Base DN configurado</td><td data-i18n="permisos_tabla_fila1_col2">Necesario para las 3 operaciones (búsqueda y consulta de atributos)</td></tr>
+        </tbody>
+      </table>
+      <p data-i18n="permisos_p1">No se necesita ningún permiso de escritura — este conector nunca modifica el directorio. En Active Directory, cualquier usuario autenticado normalmente puede leer el directorio por defecto, pero usa igual una cuenta de servicio dedicada para poder auditar y rotar su acceso de forma independiente.</p>
+    </section>
+
+    <section>
+      <h2 id="configuracion-ruvic" data-i18n="sec_config_ruvic_h2">Configuración en Ruvic</h2>
+      <p><span data-i18n="config_ruvic_p1_seg1">Entra a </span><strong data-i18n="config_ruvic_p1_strong1">Settings → Conectores</strong><span data-i18n="config_ruvic_p1_seg2">, busca la tarjeta </span><strong data-i18n="config_ruvic_p1_strong2">Active Directory / LDAP</strong><span data-i18n="config_ruvic_p1_seg3"> y pulsa </span><strong data-i18n="config_ruvic_p1_strong3">Configurar</strong><span data-i18n="config_ruvic_p1_seg4">.</span></p>
+      <p><span data-i18n="config_ruvic_p2_seg1">Elige el </span><strong data-i18n="config_ruvic_p2_strong1">Tipo de directorio</strong><span data-i18n="config_ruvic_p2_seg2"> correcto (Active Directory o LDAP genérico) — esto determina automáticamente los nombres de atributo internos que usa el conector, no necesitas configurarlos manualmente.</span></p>
+      <p><span data-i18n="config_ruvic_p3_seg1">Completa el </span><strong data-i18n="config_ruvic_p3_strong1">Servidor</strong><span data-i18n="config_ruvic_p3_seg2">, el </span><strong data-i18n="config_ruvic_p3_strong2">DN del usuario de servicio</strong><span data-i18n="config_ruvic_p3_seg3"> y su contraseña, y el </span><strong data-i18n="config_ruvic_p3_strong3">Base DN</strong><span data-i18n="config_ruvic_p3_seg4"> obtenidos en la sección anterior.</span></p>
+      <p><span data-i18n="config_ruvic_p4_seg1">Guarda y pulsa </span><span class="ruvic-button" data-i18n="config_ruvic_boton_probar">Probar conexión</span><span data-i18n="config_ruvic_p4_seg2">.</span></p>
+    </section>
+
+    <section>
+      <h2 id="verificacion" data-i18n="sec_verificacion_h2">Verificación</h2>
+      <ol class="ruvic-steps">
+        <li><strong data-i18n="verif_paso1_strong1">Test de conexión exitoso.</strong><span data-i18n="verif_paso1_seg1"> El botón </span><em data-i18n="verif_paso1_em1">Probar conexión</em><span data-i18n="verif_paso1_seg2"> debe responder: </span><em data-i18n="verif_paso1_em2">"Conexión exitosa a [servidor] (active_directory/generic_ldap)"</em><span data-i18n="verif_paso1_seg3">.</span></li>
+        <li><strong data-i18n="verif_paso2_strong1">Prueba mínima con el agente.</strong><span data-i18n="verif_paso2_seg1"> Pide algo de solo lectura:</span>
+          <blockquote><em data-i18n="verif_paso2_blockquote">"Busca al usuario [nombre de alguien que sepas que existe] en el directorio."</em></blockquote>
+        </li>
+      </ol>
+      <p data-i18n="verif_docker_intro">Para probar sin depender de un Active Directory productivo, puedes levantar un OpenLDAP local con Docker:</p>
+      <pre><code>docker run -d -p 389:389 -p 636:636 --name openldap-test \
+  -e LDAP_ORGANISATION="Empresa Prueba" \
+  -e LDAP_DOMAIN="empresa-prueba.com" \
+  -e LDAP_ADMIN_PASSWORD="admin123" \
+  osixia/openldap</code></pre>
+      <p><span data-i18n="verif_docker_config_seg1">Y configurar el conector con Tipo de directorio "LDAP genérico", Servidor </span><code>localhost</code><span data-i18n="verif_docker_config_seg2">, Puerto </span><code>389</code><span data-i18n="verif_docker_config_seg3">, SSL desactivado, DN de servicio </span><code>cn=admin,dc=empresa-prueba,dc=com</code><span data-i18n="verif_docker_config_seg4">, y Base DN </span><code>dc=empresa-prueba,dc=com</code><span data-i18n="verif_docker_config_seg5">.</span></p>
+    </section>
+
+    <section>
+      <h2 id="solucion-problemas" data-i18n="sec_solucion_problemas_h2">Solución de problemas</h2>
+      <table>
+        <thead><tr><th data-i18n="sol_tabla_th1">Mensaje / síntoma</th><th data-i18n="sol_tabla_th2">Causa probable y solución</th></tr></thead>
+        <tbody>
+          <tr><td data-i18n="sol_fila1_col1">"Bind rechazado..."</td><td data-i18n="sol_fila1_col2">El DN del usuario de servicio o la contraseña están mal, o la cuenta está bloqueada/deshabilitada. Verifica con el administrador del directorio.</td></tr>
+          <tr><td data-i18n="sol_fila2_col1">"No se pudo conectar..." (timeout/red)</td><td data-i18n="sol_fila2_col2">El servidor no es alcanzable desde donde corre Ruvic — puede requerir VPN, whitelist de IP, o el puerto (636/389) está bloqueado por un firewall.</td></tr>
+          <tr><td data-i18n="sol_fila3_col1">Error de certificado TLS (LDAPS)</td><td data-i18n="sol_fila3_col2">El certificado del controlador de dominio no es válido/confiable desde donde corre Ruvic. Consulta con el equipo de infraestructura sobre la cadena de certificados.</td></tr>
+          <tr><td><code>search_user</code><span data-i18n="sol_fila4_col1_seg1"> no encuentra a alguien que sabes que existe</span></td><td><span data-i18n="sol_fila4_col2_seg1">Revisa que el </span><code>Base DN</code><span data-i18n="sol_fila4_col2_seg2"> configurado incluya la OU donde está esa persona — si acotaste el Base DN a una sola OU, usuarios en otras OU no aparecerán.</span></td></tr>
+          <tr><td><code>get_user_groups</code><span data-i18n="sol_fila5_col1_seg1"> retorna una lista vacía para alguien que sí tiene grupos</span></td><td><span data-i18n="sol_fila5_col2_seg1">En LDAP genérico, confirma que el overlay </span><code>memberOf</code><span data-i18n="sol_fila5_col2_seg2"> esté habilitado en el servidor — sin él, esta operación no tiene de dónde leer los grupos.</span></td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section>
+      <h2 id="faq-seguridad" data-i18n="sec_faq_h2">Preguntas frecuentes y notas de seguridad</h2>
+      <h3 data-i18n="faq_pregunta1_titulo">¿El agente puede modificar el directorio?</h3>
+      <p data-i18n="faq_pregunta1_respuesta">No. Este conector no tiene ningún método de escritura — es de solo lectura por diseño.</p>
+
+      <h3 data-i18n="faq_pregunta2_titulo">¿Qué pasa si el usuario de servicio tiene más permisos de los necesarios?</h3>
+      <p data-i18n="faq_pregunta2_respuesta">El conector solo va a usar operaciones de lectura, pero si la cuenta configurada tiene permisos de escritura o administrativos, ese riesgo existe fuera del conector (por ejemplo, si alguien más usa esas mismas credenciales). Por eso se recomienda una cuenta dedicada y acotada solo a lectura.</p>
+
+      <h3 data-i18n="faq_pregunta3_titulo">¿Dónde queda guardada la contraseña del usuario de servicio?</h3>
+      <p data-i18n="faq_pregunta3_respuesta">Como secreto en el almacén de credenciales de la plataforma. La interfaz nunca vuelve a mostrarla.</p>
+
+      <h3 data-i18n="faq_pregunta4_titulo">Rotación de credenciales</h3>
+      <p data-i18n="faq_pregunta4_respuesta">Sigue la política de contraseñas del dominio para el usuario de servicio, y actualiza el valor en el formulario del conector cuando la rotes.</p>
+
+      <div class="callout callout-warning">
+        <span class="callout-title" data-i18n="faq_callout_titulo">Buenas prácticas</span>
+        <span data-i18n="faq_callout_texto">Usa siempre una cuenta de servicio dedicada, nunca una cuenta de administrador de dominio; acota el Base DN a la OU específica que el agente necesita; usa LDAPS (cifrado) en vez de LDAP plano; y confirma periódicamente con el equipo de identidad que la cuenta de servicio sigue teniendo únicamente permisos de lectura.</span>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    window.I18N = window.I18N || {};
+    window.I18N['ad_ldap'] = {
+      es: {
+        "toc_titulo": "Contenido",
+        "toc_item_que_es": "¿Qué es y para qué sirve?",
+        "toc_item_prerrequisitos": "Prerrequisitos",
+        "toc_item_configuracion_fabricante": "Configuración en el fabricante",
+        "toc_item_permisos": "Permisos requeridos",
+        "toc_item_configuracion_ruvic": "Configuración en Ruvic",
+        "toc_item_verificacion": "Verificación",
+        "toc_item_solucion_problemas": "Solución de problemas",
+        "toc_item_faq_seguridad": "Preguntas frecuentes y notas de seguridad",
+        "titulo_principal": "Conector Active Directory / LDAP",
+        "sec_que_es_h2": "¿Qué es y para qué sirve?",
+        "que_es_p1_seg1": "El conector Active Directory/LDAP permite que el agente de Ruvic consulte el directorio corporativo de la empresa — buscar personas, ver a qué grupos pertenecen, o confirmar si una cuenta existe. Funciona tanto con ",
+        "que_es_p1_strong1": "Active Directory",
+        "que_es_p1_seg2": " (Microsoft) como con ",
+        "que_es_p1_strong2": "LDAP genérico",
+        "que_es_p1_seg3": " (OpenLDAP, FreeIPA, y otros que sigan el estándar).",
+        "que_es_p2": "Una vez configurado, puedes pedirle al agente cosas como:",
+        "que_es_ejemplo1": "\"Busca a Juan Pérez en el directorio.\"",
+        "que_es_ejemplo2": "\"¿A qué grupos pertenece el usuario jperez?\"",
+        "que_es_ejemplo3": "\"¿Existe la cuenta 'mgomez' en el directorio?\"",
+        "que_es_operaciones_intro": "Operaciones soportadas:",
+        "que_es_tabla_th1": "Operación",
+        "que_es_tabla_th2": "Qué hace",
+        "que_es_tabla_fila1_desc": "Busca usuarios por coincidencia parcial en usuario, nombre o correo",
+        "que_es_tabla_fila2_desc": "Consulta los grupos de un usuario específico",
+        "que_es_tabla_fila3_desc": "Valida si una cuenta existe (búsqueda exacta)",
+        "que_es_callout_titulo": "Conector de solo lectura",
+        "que_es_callout_seg1": "Este conector ",
+        "que_es_callout_strong1": "no crea, modifica, ni elimina",
+        "que_es_callout_seg2": " usuarios ni grupos — no tiene ningún método para hacerlo. Los cambios de identidad en un directorio corporativo suelen requerir flujos de aprobación propios (mesa de ayuda, gestión de identidad) que este conector no debe saltarse.",
+        "sec_prerrequisitos_h2": "Prerrequisitos",
+        "prereq_item1_seg1": "Un ",
+        "prereq_item1_strong1": "Active Directory",
+        "prereq_item1_seg2": " o servidor ",
+        "prereq_item1_strong2": "LDAP",
+        "prereq_item1_seg3": " accesible por red desde donde corre Ruvic.",
+        "prereq_item2_seg1": "Un ",
+        "prereq_item2_strong1": "usuario de servicio dedicado",
+        "prereq_item2_seg2": " con solo permiso de lectura — nunca una cuenta de administrador de dominio.",
+        "prereq_item3_seg1": "El ",
+        "prereq_item3_strong1": "Base DN",
+        "prereq_item3_seg2": " (el \"punto de partida\" de las búsquedas dentro del árbol del directorio).",
+        "prereq_item4_seg1": "Para pruebas: puedes levantar un servidor OpenLDAP local con Docker en vez de conectarte a un Active Directory productivo (ver sección de ",
+        "prereq_item4_link": "Verificación",
+        "prereq_item4_seg2": ").",
+        "sec_config_fabricante_h2": "Configuración en el fabricante",
+        "fabricante_ad_h3": "Si es Active Directory (Microsoft)",
+        "ad_paso1_strong1": "Pide al administrador de dominio",
+        "ad_paso1_seg1": " que cree una cuenta de servicio (ej. ",
+        "ad_paso1_seg2": "), como cuenta de usuario normal — ",
+        "ad_paso1_strong2": "no",
+        "ad_paso1_seg3": " como Domain Admin.",
+        "ad_paso2_strong1": "Confirma el Base DN",
+        "ad_paso2_seg1": " de tu dominio — normalmente se ve como ",
+        "ad_paso2_seg2": ". Puedes verlo en \"Active Directory Users and Computers\" (ADUC), en las propiedades del dominio.",
+        "ad_paso3_strong1": "Confirma el DN completo de la cuenta de servicio",
+        "ad_paso3_seg1": " — algo como ",
+        "ad_paso3_seg2": ". El administrador puede darte este valor exacto desde ADUC (clic derecho en la cuenta → \"Copy Distinguished Name\", en algunas versiones).",
+        "ad_paso4_strong1": "Confirma que LDAPS (puerto 636) esté habilitado",
+        "ad_paso4_seg1": " en el controlador de dominio — es la vía recomendada. Si no lo está, pide al equipo de infraestructura que lo habilite (requiere un certificado en el controlador de dominio).",
+        "fabricante_ldap_h3": "Si es LDAP genérico (OpenLDAP, FreeIPA, etc.)",
+        "ldap_paso1_strong1": "Pide al administrador del directorio",
+        "ldap_paso1_seg1": " un usuario/DN de solo lectura (ej. ",
+        "ldap_paso1_seg2": ").",
+        "ldap_paso2_strong1": "Confirma el Base DN",
+        "ldap_paso2_seg1": " (ej. ",
+        "ldap_paso2_seg2": ").",
+        "ldap_paso3_strong1": "Confirma si el overlay",
+        "ldap_paso3_strong2": "está habilitado",
+        "ldap_paso3_seg1": " — es necesario para que ",
+        "ldap_paso3_seg2": " funcione. La mayoría de instalaciones modernas de OpenLDAP lo tienen activado por defecto.",
+        "sec_permisos_h2": "Permisos requeridos",
+        "permisos_tabla_th1": "Permiso",
+        "permisos_tabla_th2": "Para qué lo usa el conector",
+        "permisos_tabla_fila1_col1": "Lectura sobre el Base DN configurado",
+        "permisos_tabla_fila1_col2": "Necesario para las 3 operaciones (búsqueda y consulta de atributos)",
+        "permisos_p1": "No se necesita ningún permiso de escritura — este conector nunca modifica el directorio. En Active Directory, cualquier usuario autenticado normalmente puede leer el directorio por defecto, pero usa igual una cuenta de servicio dedicada para poder auditar y rotar su acceso de forma independiente.",
+        "sec_config_ruvic_h2": "Configuración en Ruvic",
+        "config_ruvic_p1_seg1": "Entra a ",
+        "config_ruvic_p1_strong1": "Settings → Conectores",
+        "config_ruvic_p1_seg2": ", busca la tarjeta ",
+        "config_ruvic_p1_strong2": "Active Directory / LDAP",
+        "config_ruvic_p1_seg3": " y pulsa ",
+        "config_ruvic_p1_strong3": "Configurar",
+        "config_ruvic_p1_seg4": ".",
+        "config_ruvic_p2_seg1": "Elige el ",
+        "config_ruvic_p2_strong1": "Tipo de directorio",
+        "config_ruvic_p2_seg2": " correcto (Active Directory o LDAP genérico) — esto determina automáticamente los nombres de atributo internos que usa el conector, no necesitas configurarlos manualmente.",
+        "config_ruvic_p3_seg1": "Completa el ",
+        "config_ruvic_p3_strong1": "Servidor",
+        "config_ruvic_p3_seg2": ", el ",
+        "config_ruvic_p3_strong2": "DN del usuario de servicio",
+        "config_ruvic_p3_seg3": " y su contraseña, y el ",
+        "config_ruvic_p3_strong3": "Base DN",
+        "config_ruvic_p3_seg4": " obtenidos en la sección anterior.",
+        "config_ruvic_p4_seg1": "Guarda y pulsa ",
+        "config_ruvic_boton_probar": "Probar conexión",
+        "config_ruvic_p4_seg2": ".",
+        "sec_verificacion_h2": "Verificación",
+        "verif_paso1_strong1": "Test de conexión exitoso.",
+        "verif_paso1_seg1": " El botón ",
+        "verif_paso1_em1": "Probar conexión",
+        "verif_paso1_seg2": " debe responder: ",
+        "verif_paso1_em2": "\"Conexión exitosa a [servidor] (active_directory/generic_ldap)\"",
+        "verif_paso1_seg3": ".",
+        "verif_paso2_strong1": "Prueba mínima con el agente.",
+        "verif_paso2_seg1": " Pide algo de solo lectura:",
+        "verif_paso2_blockquote": "\"Busca al usuario [nombre de alguien que sepas que existe] en el directorio.\"",
+        "verif_docker_intro": "Para probar sin depender de un Active Directory productivo, puedes levantar un OpenLDAP local con Docker:",
+        "verif_docker_config_seg1": "Y configurar el conector con Tipo de directorio \"LDAP genérico\", Servidor ",
+        "verif_docker_config_seg2": ", Puerto ",
+        "verif_docker_config_seg3": ", SSL desactivado, DN de servicio ",
+        "verif_docker_config_seg4": ", y Base DN ",
+        "verif_docker_config_seg5": ".",
+        "sec_solucion_problemas_h2": "Solución de problemas",
+        "sol_tabla_th1": "Mensaje / síntoma",
+        "sol_tabla_th2": "Causa probable y solución",
+        "sol_fila1_col1": "\"Bind rechazado...\"",
+        "sol_fila1_col2": "El DN del usuario de servicio o la contraseña están mal, o la cuenta está bloqueada/deshabilitada. Verifica con el administrador del directorio.",
+        "sol_fila2_col1": "\"No se pudo conectar...\" (timeout/red)",
+        "sol_fila2_col2": "El servidor no es alcanzable desde donde corre Ruvic — puede requerir VPN, whitelist de IP, o el puerto (636/389) está bloqueado por un firewall.",
+        "sol_fila3_col1": "Error de certificado TLS (LDAPS)",
+        "sol_fila3_col2": "El certificado del controlador de dominio no es válido/confiable desde donde corre Ruvic. Consulta con el equipo de infraestructura sobre la cadena de certificados.",
+        "sol_fila4_col1_seg1": " no encuentra a alguien que sabes que existe",
+        "sol_fila4_col2_seg1": "Revisa que el ",
+        "sol_fila4_col2_seg2": " configurado incluya la OU donde está esa persona — si acotaste el Base DN a una sola OU, usuarios en otras OU no aparecerán.",
+        "sol_fila5_col1_seg1": " retorna una lista vacía para alguien que sí tiene grupos",
+        "sol_fila5_col2_seg1": "En LDAP genérico, confirma que el overlay ",
+        "sol_fila5_col2_seg2": " esté habilitado en el servidor — sin él, esta operación no tiene de dónde leer los grupos.",
+        "sec_faq_h2": "Preguntas frecuentes y notas de seguridad",
+        "faq_pregunta1_titulo": "¿El agente puede modificar el directorio?",
+        "faq_pregunta1_respuesta": "No. Este conector no tiene ningún método de escritura — es de solo lectura por diseño.",
+        "faq_pregunta2_titulo": "¿Qué pasa si el usuario de servicio tiene más permisos de los necesarios?",
+        "faq_pregunta2_respuesta": "El conector solo va a usar operaciones de lectura, pero si la cuenta configurada tiene permisos de escritura o administrativos, ese riesgo existe fuera del conector (por ejemplo, si alguien más usa esas mismas credenciales). Por eso se recomienda una cuenta dedicada y acotada solo a lectura.",
+        "faq_pregunta3_titulo": "¿Dónde queda guardada la contraseña del usuario de servicio?",
+        "faq_pregunta3_respuesta": "Como secreto en el almacén de credenciales de la plataforma. La interfaz nunca vuelve a mostrarla.",
+        "faq_pregunta4_titulo": "Rotación de credenciales",
+        "faq_pregunta4_respuesta": "Sigue la política de contraseñas del dominio para el usuario de servicio, y actualiza el valor en el formulario del conector cuando la rotes.",
+        "faq_callout_titulo": "Buenas prácticas",
+        "faq_callout_texto": "Usa siempre una cuenta de servicio dedicada, nunca una cuenta de administrador de dominio; acota el Base DN a la OU específica que el agente necesita; usa LDAPS (cifrado) en vez de LDAP plano; y confirma periódicamente con el equipo de identidad que la cuenta de servicio sigue teniendo únicamente permisos de lectura."
+      },
+      en: {
+        "toc_titulo": "Contents",
+        "toc_item_que_es": "What is it and what is it for?",
+        "toc_item_prerrequisitos": "Prerequisites",
+        "toc_item_configuracion_fabricante": "Vendor-side configuration",
+        "toc_item_permisos": "Required permissions",
+        "toc_item_configuracion_ruvic": "Configuration in Ruvic",
+        "toc_item_verificacion": "Verification",
+        "toc_item_solucion_problemas": "Troubleshooting",
+        "toc_item_faq_seguridad": "FAQ and security notes",
+        "titulo_principal": "Active Directory / LDAP Connector",
+        "sec_que_es_h2": "What is it and what is it for?",
+        "que_es_p1_seg1": "The Active Directory/LDAP connector lets the Ruvic agent query the company's corporate directory — search for people, see which groups they belong to, or confirm whether an account exists. It works with both ",
+        "que_es_p1_strong1": "Active Directory",
+        "que_es_p1_seg2": " (Microsoft) and ",
+        "que_es_p1_strong2": "generic LDAP",
+        "que_es_p1_seg3": " (OpenLDAP, FreeIPA, and others that follow the standard).",
+        "que_es_p2": "Once configured, you can ask the agent things like:",
+        "que_es_ejemplo1": "\"Search for Juan Pérez in the directory.\"",
+        "que_es_ejemplo2": "\"Which groups does user jperez belong to?\"",
+        "que_es_ejemplo3": "\"Does the account 'mgomez' exist in the directory?\"",
+        "que_es_operaciones_intro": "Supported operations:",
+        "que_es_tabla_th1": "Operation",
+        "que_es_tabla_th2": "What it does",
+        "que_es_tabla_fila1_desc": "Searches for users by partial match on username, name, or email",
+        "que_es_tabla_fila2_desc": "Looks up the groups a specific user belongs to",
+        "que_es_tabla_fila3_desc": "Validates whether an account exists (exact match)",
+        "que_es_callout_titulo": "Read-only connector",
+        "que_es_callout_seg1": "This connector ",
+        "que_es_callout_strong1": "does not create, modify, or delete",
+        "que_es_callout_seg2": " users or groups — it has no method to do so. Identity changes in a corporate directory usually require their own approval workflows (help desk, identity management) that this connector must not bypass.",
+        "sec_prerrequisitos_h2": "Prerequisites",
+        "prereq_item1_seg1": "An ",
+        "prereq_item1_strong1": "Active Directory",
+        "prereq_item1_seg2": " or ",
+        "prereq_item1_strong2": "LDAP",
+        "prereq_item1_seg3": " server reachable over the network from wherever Ruvic runs.",
+        "prereq_item2_seg1": "A ",
+        "prereq_item2_strong1": "dedicated service account",
+        "prereq_item2_seg2": " with read-only permission — never a domain administrator account.",
+        "prereq_item3_seg1": "The ",
+        "prereq_item3_strong1": "Base DN",
+        "prereq_item3_seg2": " (the \"starting point\" for searches within the directory tree).",
+        "prereq_item4_seg1": "For testing: you can spin up a local OpenLDAP server with Docker instead of connecting to a production Active Directory (see the ",
+        "prereq_item4_link": "Verification",
+        "prereq_item4_seg2": " section).",
+        "sec_config_fabricante_h2": "Vendor-side configuration",
+        "fabricante_ad_h3": "If it's Active Directory (Microsoft)",
+        "ad_paso1_strong1": "Ask the domain administrator",
+        "ad_paso1_seg1": " to create a service account (e.g. ",
+        "ad_paso1_seg2": "), as a regular user account — ",
+        "ad_paso1_strong2": "not",
+        "ad_paso1_seg3": " as a Domain Admin.",
+        "ad_paso2_strong1": "Confirm the Base DN",
+        "ad_paso2_seg1": " of your domain — it typically looks like ",
+        "ad_paso2_seg2": ". You can find it in \"Active Directory Users and Computers\" (ADUC), under the domain properties.",
+        "ad_paso3_strong1": "Confirm the full DN of the service account",
+        "ad_paso3_seg1": " — something like ",
+        "ad_paso3_seg2": ". The administrator can give you this exact value from ADUC (right-click the account → \"Copy Distinguished Name\" in some versions).",
+        "ad_paso4_strong1": "Confirm that LDAPS (port 636) is enabled",
+        "ad_paso4_seg1": " on the domain controller — this is the recommended path. If it isn't, ask the infrastructure team to enable it (requires a certificate on the domain controller).",
+        "fabricante_ldap_h3": "If it's generic LDAP (OpenLDAP, FreeIPA, etc.)",
+        "ldap_paso1_strong1": "Ask the directory administrator",
+        "ldap_paso1_seg1": " for a read-only user/DN (e.g. ",
+        "ldap_paso1_seg2": ").",
+        "ldap_paso2_strong1": "Confirm the Base DN",
+        "ldap_paso2_seg1": " (e.g. ",
+        "ldap_paso2_seg2": ").",
+        "ldap_paso3_strong1": "Confirm whether the overlay",
+        "ldap_paso3_strong2": "is enabled",
+        "ldap_paso3_seg1": " — this is required for ",
+        "ldap_paso3_seg2": " to work. Most modern OpenLDAP installations have it enabled by default.",
+        "sec_permisos_h2": "Required permissions",
+        "permisos_tabla_th1": "Permission",
+        "permisos_tabla_th2": "What the connector uses it for",
+        "permisos_tabla_fila1_col1": "Read access over the configured Base DN",
+        "permisos_tabla_fila1_col2": "Required for all 3 operations (search and attribute lookup)",
+        "permisos_p1": "No write permission is needed — this connector never modifies the directory. In Active Directory, any authenticated user can typically read the directory by default, but you should still use a dedicated service account so its access can be audited and rotated independently.",
+        "sec_config_ruvic_h2": "Configuration in Ruvic",
+        "config_ruvic_p1_seg1": "Go to ",
+        "config_ruvic_p1_strong1": "Settings → Connectors",
+        "config_ruvic_p1_seg2": ", find the ",
+        "config_ruvic_p1_strong2": "Active Directory / LDAP",
+        "config_ruvic_p1_seg3": " card, and click ",
+        "config_ruvic_p1_strong3": "Configure",
+        "config_ruvic_p1_seg4": ".",
+        "config_ruvic_p2_seg1": "Choose the correct ",
+        "config_ruvic_p2_strong1": "Directory type",
+        "config_ruvic_p2_seg2": " (Active Directory or generic LDAP) — this automatically determines the internal attribute names the connector uses; you don't need to configure them manually.",
+        "config_ruvic_p3_seg1": "Fill in the ",
+        "config_ruvic_p3_strong1": "Server",
+        "config_ruvic_p3_seg2": ", the ",
+        "config_ruvic_p3_strong2": "service account DN",
+        "config_ruvic_p3_seg3": " and its password, and the ",
+        "config_ruvic_p3_strong3": "Base DN",
+        "config_ruvic_p3_seg4": " you obtained in the previous section.",
+        "config_ruvic_p4_seg1": "Save and click ",
+        "config_ruvic_boton_probar": "Test connection",
+        "config_ruvic_p4_seg2": ".",
+        "sec_verificacion_h2": "Verification",
+        "verif_paso1_strong1": "Successful connection test.",
+        "verif_paso1_seg1": " The ",
+        "verif_paso1_em1": "Test connection",
+        "verif_paso1_seg2": " button should respond: ",
+        "verif_paso1_em2": "\"Successful connection to [server] (active_directory/generic_ldap)\"",
+        "verif_paso1_seg3": ".",
+        "verif_paso2_strong1": "Minimal test with the agent.",
+        "verif_paso2_seg1": " Ask for something read-only:",
+        "verif_paso2_blockquote": "\"Search for user [name of someone you know exists] in the directory.\"",
+        "verif_docker_intro": "To test without relying on a production Active Directory, you can spin up a local OpenLDAP with Docker:",
+        "verif_docker_config_seg1": "Then configure the connector with Directory type \"Generic LDAP\", Server ",
+        "verif_docker_config_seg2": ", Port ",
+        "verif_docker_config_seg3": ", SSL disabled, service DN ",
+        "verif_docker_config_seg4": ", and Base DN ",
+        "verif_docker_config_seg5": ".",
+        "sec_solucion_problemas_h2": "Troubleshooting",
+        "sol_tabla_th1": "Message / symptom",
+        "sol_tabla_th2": "Likely cause and fix",
+        "sol_fila1_col1": "\"Bind rejected...\"",
+        "sol_fila1_col2": "The service account DN or password is wrong, or the account is locked/disabled. Check with the directory administrator.",
+        "sol_fila2_col1": "\"Could not connect...\" (timeout/network)",
+        "sol_fila2_col2": "The server isn't reachable from wherever Ruvic runs — this may require a VPN, an IP whitelist, or the port (636/389) may be blocked by a firewall.",
+        "sol_fila3_col1": "TLS certificate error (LDAPS)",
+        "sol_fila3_col2": "The domain controller's certificate isn't valid/trusted from wherever Ruvic runs. Check with the infrastructure team about the certificate chain.",
+        "sol_fila4_col1_seg1": " doesn't find someone you know exists",
+        "sol_fila4_col2_seg1": "Check that the configured ",
+        "sol_fila4_col2_seg2": " includes the OU where that person is — if you scoped the Base DN to a single OU, users in other OUs won't show up.",
+        "sol_fila5_col1_seg1": " returns an empty list for someone who does have groups",
+        "sol_fila5_col2_seg1": "In generic LDAP, confirm that the ",
+        "sol_fila5_col2_seg2": " overlay is enabled on the server — without it, this operation has nowhere to read the groups from.",
+        "sec_faq_h2": "FAQ and security notes",
+        "faq_pregunta1_titulo": "Can the agent modify the directory?",
+        "faq_pregunta1_respuesta": "No. This connector has no write method — it is read-only by design.",
+        "faq_pregunta2_titulo": "What if the service account has more permissions than necessary?",
+        "faq_pregunta2_respuesta": "The connector will only use read operations, but if the configured account has write or administrative permissions, that risk exists outside the connector (for example, if someone else uses those same credentials). That's why a dedicated account scoped to read-only is recommended.",
+        "faq_pregunta3_titulo": "Where is the service account's password stored?",
+        "faq_pregunta3_respuesta": "As a secret in the platform's credential vault. The interface never displays it again.",
+        "faq_pregunta4_titulo": "Credential rotation",
+        "faq_pregunta4_respuesta": "Follow the domain's password policy for the service account, and update the value in the connector's form whenever you rotate it.",
+        "faq_callout_titulo": "Best practices",
+        "faq_callout_texto": "Always use a dedicated service account, never a domain administrator account; scope the Base DN to the specific OU the agent needs; use LDAPS (encrypted) instead of plain LDAP; and periodically confirm with the identity team that the service account still has read-only permissions only."
+      }
+    };
+  </script>
+</body>
+</html>

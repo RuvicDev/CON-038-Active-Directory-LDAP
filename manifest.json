@@ -1,0 +1,55 @@
+{
+  "id": "ad_ldap",
+  "name": "Active Directory / LDAP",
+  "name_en": "Active Directory / LDAP",
+  "version": "1.0.0",
+  "description": "Consulta de usuarios y grupos en Active Directory o LDAP genérico: buscar usuario, consultar grupos de un usuario, validar existencia de cuenta. Conector de solo lectura.",
+  "description_en": "Query users and groups in Active Directory or generic LDAP: search users, get a user's groups, validate account existence. Read-only connector.",
+  "category": "utilities",
+  "category_en": "utilities",
+  "keywords": ["active directory", "ldap", "ldaps", "usuarios", "users", "grupos", "groups", "directorio", "directory", "sso", "identidad"],
+  "icon": "icon.svg",
+  "library": {
+    "package": "ruvic-ad-ldap-connector",
+    "install": "pip install git+https://github.com/tu-org/conector-ad-ldap.git#subdirectory=lib",
+    "import_name": "ruvic_ad_ldap_connector"
+  },
+  "auth_modes": [
+    {
+      "id": "simple_bind",
+      "label": "Bind simple (usuario de servicio y contraseña)",
+      "fields": [
+        {
+          "key": "directory_type",
+          "label": "Tipo de directorio",
+          "type": "select",
+          "required": true,
+          "default": "active_directory",
+          "options": [
+            { "value": "active_directory", "label": "Active Directory (Microsoft)" },
+            { "value": "generic_ldap", "label": "LDAP genérico (OpenLDAP, FreeIPA, etc.)" }
+          ],
+          "help_text": "Determina automáticamente los nombres de atributo correctos (ej. sAMAccountName en AD, uid en LDAP genérico)."
+        },
+        { "key": "server_host", "label": "Servidor", "type": "text", "required": true, "placeholder": "dc01.miempresa.com" },
+        { "key": "port", "label": "Puerto (opcional)", "type": "number", "required": false, "help_text": "Por defecto 636 (LDAPS) o 389 si desactivas SSL." },
+        { "key": "use_ssl", "label": "Usar LDAPS (cifrado)", "type": "boolean", "required": false, "default": "true", "help_text": "Muy recomendado dejarlo activado: LDAP sin cifrar envía la contraseña del bind en texto plano." },
+        { "key": "bind_dn", "label": "DN del usuario de servicio", "type": "text", "required": true, "placeholder": "CN=svc-ruvic,OU=Service Accounts,DC=miempresa,DC=com" },
+        { "key": "bind_password", "label": "Contraseña del usuario de servicio", "type": "password", "secret": true, "required": true },
+        { "key": "base_dn", "label": "Base DN de búsqueda", "type": "text", "required": true, "placeholder": "DC=miempresa,DC=com", "help_text": "El punto de partida de las búsquedas — acótalo a la OU específica que el agente necesita consultar si es posible, en vez de la raíz completa del dominio." },
+        { "key": "request_timeout", "label": "Timeout de conexión (segundos)", "type": "number", "required": false, "default": "20" }
+      ]
+    }
+  ],
+  "env_prefix": "RUVIC_AD_LDAP_",
+  "operations": [
+    "directory.search_user",
+    "directory.get_user_groups",
+    "directory.check_user_exists"
+  ],
+  "test_connection": true,
+  "docs": {
+    "skill": "SKILL.md",
+    "permissions_note": "El usuario de servicio (bind_dn) necesita únicamente permiso de LECTURA sobre la Base DN configurada — nunca uses una cuenta de administrador de dominio. Este conector es de solo lectura: no crea, modifica, ni elimina usuarios ni grupos, y no tiene ningún método para hacerlo."
+  }
+}

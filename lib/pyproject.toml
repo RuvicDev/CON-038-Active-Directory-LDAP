@@ -1,0 +1,15 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ruvic-ad-ldap-connector"
+version = "1.0.0"
+description = "Conector Ruvic para Active Directory / LDAP: buscar usuarios, consultar grupos y validar existencia de cuentas"
+requires-python = ">=3.10"
+dependencies = [
+    "ldap3>=2.9,<3.0",
+]
+
+[tool.setuptools.packages.find]
+include = ["ruvic_ad_ldap_connector*"]
